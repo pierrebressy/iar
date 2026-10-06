@@ -107,7 +107,7 @@
       cols, rows, rgba, L,
       reality: {
         position: { ...reality.position }, rotation: { ...reality.rotation },
-        intrinsics: Array.from(reality.intrinsics), trackingStatus: reality.trackingStatus,
+        intrinsics: Array.from(reality.intrinsics || []), trackingStatus: reality.trackingStatus,
       },
     };
   }
@@ -125,6 +125,7 @@
 
   function processAnchor(anchorId, anchor, pos, snap) {
     const { cols, rows, L, reality } = snap;
+    state.pixSize = `${cols}×${rows}`;
     const qrPx = [pos.topLeft, pos.topRight, pos.bottomRight, pos.bottomLeft].map((p) => [p.x, p.y]);
     // 1) affinage sous-pixel sur le cadre noir imprimé
     let model, imgPx, method;
@@ -148,7 +149,19 @@
       detected: imgPx.map(toScreen), reprojScreen: projModel(model), outline: projModel(outline(outer)),
       edgeRms: ref ? ref.edgeRms : null,
     };
-    if (reproj > CFG.maxReprojPx || reality.trackingStatus !== 'NORMAL') return;
+    // garde-fous : toute valeur non finie (NaN) est rejetée et signalée dans le panneau Debug
+    const fin = (a) => Array.from(a).every(Number.isFinite);
+    const Tcam0 = cameraPose(reality);
+    const checks = {
+      intrinsics: fin(P), coins: imgPx.every(fin), norm: img.every(fin),
+      poseR: fin(pose.R), poseT: fin(pose.t), camR: fin(Tcam0.R), camT: fin(Tcam0.t),
+    };
+    const bad = Object.keys(checks).filter((k) => !checks[k]);
+    if (bad.length || !Number.isFinite(reproj)) {
+      state.nanInfo = `NaN dans : ${bad.join(', ') || 'reproj'} | P=[${Array.from(P).slice(0, 16).map((v) => (+v).toFixed(3)).join(',')}] pos=${JSON.stringify(reality.position)} rot=${JSON.stringify(reality.rotation)}`;
+      return;
+    }
+    if (!(reproj <= CFG.maxReprojPx) || reality.trackingStatus !== 'NORMAL') return;
     if (CFG.requireFrame && method !== 'cadre') return;
 
     // 3) paires (repère pièce ↔ monde SLAM) pour le recalage global
@@ -163,6 +176,7 @@
     if (mine > CFG.maxFrames * 5) state.obs.splice(state.obs.findIndex((o) => o.anchor === anchorId), 5);
     if (state.obs.length / 5 >= CFG.framesForLock || state.T_world_room) {
       const fit = G.rigidFit(state.obs.map((o) => o.room), state.obs.map((o) => o.world));
+      if (!fit.R.every(Number.isFinite) || !fit.t.every(Number.isFinite)) { state.nanInfo = 'NaN dans le recalage global'; return; }
       state.T_world_room = { R: fit.R, t: fit.t };
       state.fitRms = fit.rms;
     }
@@ -299,7 +313,10 @@
       if (state.lastQR) lines.push(`ancre ${state.lastQR.anchor} [${state.lastQR.method}] d=${state.lastQR.dist.toFixed(2)} m reproj=${state.lastQR.reproj.toFixed(2)} px bords=${state.lastQR.edgeRms != null ? state.lastQR.edgeRms.toFixed(2) : '-'} px`);
       const p = currentRoomPosition();
       if (p) lines.push(`position pièce x=${p[0].toFixed(2)} y=${p[1].toFixed(2)} z=${p[2].toFixed(2)} m`);
-      lines.push(`P0=${r.intrinsics[0].toFixed(3)} P5=${r.intrinsics[5].toFixed(3)}`);
+      const Pi = r.intrinsics || [];
+      lines.push(`P0=${(+Pi[0]).toFixed(3)} P5=${(+Pi[5]).toFixed(3)} P8=${(+Pi[8]).toFixed(3)} P9=${(+Pi[9]).toFixed(3)} n=${Pi.length}`);
+      lines.push(`écran ${window.innerWidth}×${window.innerHeight} · pixels ${state.pixSize || '?'}`);
+      if (state.nanInfo) lines.push(state.nanInfo.replace(/(.{60})/g, '$1\n'));
       $('debug').textContent = lines.join('\n');
     }
   }
@@ -324,8 +341,20 @@
 
   // ---------------- module pipeline 8th Wall ----------------
   function appModule() {
+    // Sans module Three.js, il faut donner nous-mêmes au SLAM la taille du canevas,
+    // sinon la matrice de projection (reality.intrinsics) est calculée sur 0×0 → NaN.
+    const setProjection = ({ canvasWidth, canvasHeight }) => {
+      if (!canvasWidth || !canvasHeight) return;
+      XR8.XrController.updateCameraProjectionMatrix({
+        cam: { pixelRectWidth: canvasWidth, pixelRectHeight: canvasHeight, nearClipPlane: 0.01, farClipPlane: 1000 },
+        origin: { x: 0, y: 0, z: 0 },
+        facing: { w: 1, x: 0, y: 0, z: 0 },
+      });
+    };
     return {
       name: 'qr-anchor-app',
+      onStart: setProjection,
+      onCanvasSizeChange: setProjection,
       onUpdate: ({ processCpuResult, processGpuResult }) => {
         const reality = processCpuResult && processCpuResult.reality;
         if (!reality) return;

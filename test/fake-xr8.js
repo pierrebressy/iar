@@ -41,12 +41,12 @@ function tick(){
   if(frame<400) setTimeout(tick,30);
 }
 window.XR8={
-  XrController:{configure(){},pipelineModule:()=>({name:'xr'})},
+  XrController:{configure(){},updateCameraProjectionMatrix(o){window.__proj=o;},pipelineModule:()=>({name:'xr'})},
   GlTextureRenderer:{pipelineModule:()=>({name:'gl'})},
   CameraPixelArray:{pipelineModule:()=>({name:'cpa'})},
   XrConfig:{device:()=>({MOBILE:'mobile',ANY:'any'})},
   addCameraPipelineModules(a){modules.push(...a);},
-  run(o){canvas=o.canvas;setTimeout(tick,50);},
+  run(o){canvas=o.canvas;for(const m of modules) if(m.onStart) m.onStart({canvasWidth:canvas.width,canvasHeight:canvas.height});setTimeout(tick,50);},
 };
 setTimeout(()=>window.dispatchEvent(new Event('xrloaded')),10);
 })();
