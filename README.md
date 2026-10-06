@@ -66,8 +66,12 @@ Ancres supplémentaires : `position` (centre du cadre dans le repère pièce) et
 (Euler, ordre XYZ comme Three.js, R = Rx·Ry·Rz). Une cible sur le mur d'en face (10 m), tournée vers
 la première : `"position": [0, 0, 10], "rotation": [0, 180, 0]`.
 
-**Relever des positions sur place** : une fois recalé, se placer au point voulu et toucher
-« 📍 Ma position » (position de la caméra dans le repère pièce, copiée dans le presse-papiers).
+**Relever des positions sur place (🎯 Relever)** : une fois recalé, choisir l'objet (ou « nouvel
+objet »), viser le point avec la croix centrale et toucher « ◎ Viser » ; se déplacer latéralement
+d'au moins 1 m et viser le même point ; idéalement une 3e visée. Le point est triangulé (moindres
+carrés sur les rayons de visée), avec l'angle entre visées (viser ≥ 15°, idéalement 30–90°) et
+l'écart des rayons. « Enregistrer » met l'objet à jour immédiatement dans l'app et copie la liste
+`objects` au format JSON, à coller dans `config.json`.
 
 ## Diagnostic (bouton Debug)
 

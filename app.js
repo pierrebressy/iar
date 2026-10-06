@@ -225,7 +225,8 @@
       if (onScreen) drawLabel(it, s, it.obj === (state.selected || focus));
       else drawEdgeArrow(it, P);
     }
-    showInfo(state.selected || focus);
+    showInfo(survey.active ? null : (state.selected || focus));
+    if (survey.active) drawSurvey();
   }
 
   function poly(pts, color, w) {
@@ -331,12 +332,123 @@
   // ---------------- boutons ----------------
   $('btn-reset').onclick = () => { state.obs = []; state.T_world_room = null; state.fitRms = null; state.selected = null; };
   $('btn-debug').onclick = () => { state.debug = !state.debug; $('debug').hidden = !state.debug; };
-  $('btn-pos').onclick = async () => {
-    const p = currentRoomPosition();
-    if (!p) { setStatus('Pas encore recalé'); return; }
-    const txt = `[${p.map((v) => v.toFixed(2)).join(', ')}]`;
-    try { await navigator.clipboard.writeText(txt); toast(`Position copiée : ${txt}`); } catch (e) { toast(txt); }
+  // ---------------- relevé d'objets par visées (triangulation) ----------------
+  // On vise le point avec la croix centrale depuis au moins 2 endroits différents ;
+  // le point retenu minimise la somme des distances au carré aux rayons de visée.
+  const survey = { active: false, rays: [], result: null };
+  state.survey = survey;
+
+  function currentRay() { // rayon de visée (centre de l'écran) dans le repère pièce
+    if (!state.T_world_room || !state.reality) return null;
+    const P = state.reality.intrinsics;
+    const Tcam = cameraPose(state.reality);
+    // direction du centre de l'écran en repère caméra Three (tient compte d'un éventuel décentrage)
+    const d = [-P[8] / P[0], -P[9] / P[5], -1];
+    const Troom_world = G.invert(state.T_world_room);
+    const o = G.apply(Troom_world, Tcam.t);
+    let dir = G.mulMV(Troom_world.R, G.mulMV(Tcam.R, d));
+    dir = G.scale(dir, 1 / G.norm(dir));
+    return { o, d: dir };
+  }
+
+  function triangulate(rays) {
+    const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0];
+    for (const { o, d } of rays) {
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+        const m = (i === j ? 1 : 0) - d[i] * d[j];
+        A[i][j] += m; b[i] += m * o[j];
+      }
+    }
+    const p = G.solve(A, b);
+    if (!p) return null;
+    let se = 0, maxAng = 0;
+    for (const { o, d } of rays) {
+      const v = G.sub(p, o), along = G.dot(v, d);
+      se += G.dot(v, v) - along * along;
+    }
+    for (let i = 0; i < rays.length; i++) for (let j = i + 1; j < rays.length; j++) {
+      maxAng = Math.max(maxAng, (Math.acos(Math.min(1, Math.abs(G.dot(rays[i].d, rays[j].d)))) * 180) / Math.PI);
+    }
+    return { p, rms: Math.sqrt(Math.max(0, se) / rays.length), angle: maxAng };
+  }
+
+  function surveyUI() {
+    const n = survey.rays.length, r = survey.result;
+    $('sv-count').textContent = n === 0 ? 'Visez le point avec la croix, puis « Viser ».'
+      : n === 1 ? '1 visée. Déplacez-vous latéralement (≥ 1 m) et visez à nouveau.'
+      : `${n} visées.`;
+    let q = '';
+    if (r) {
+      const ok = r.angle >= 15 && r.rms < 0.03;
+      q = `x=${r.p[0].toFixed(2)}  y=${r.p[1].toFixed(2)}  z=${r.p[2].toFixed(2)} m\nangle ${r.angle.toFixed(0)}° · écart ${(r.rms * 100).toFixed(1)} cm ${ok ? '✓' : r.angle < 15 ? '— angle trop faible, éloignez les visées' : '— visées incohérentes'}`;
+    }
+    $('sv-result').textContent = q;
+    $('sv-apply').disabled = !r;
+  }
+
+  function openSurvey() {
+    if (!state.T_world_room) { toast('Recalez d\'abord sur la cible'); return; }
+    const sel = $('sv-object');
+    sel.innerHTML = CFG.objects.map((o, i) => `<option value="${i}">${o.label}</option>`).join('') + '<option value="new">+ nouvel objet…</option>';
+    survey.active = true; survey.rays = []; survey.result = null;
+    $('survey').hidden = false; $('bar').hidden = true; surveyUI();
+  }
+  function closeSurvey() { survey.active = false; $('survey').hidden = true; $('bar').hidden = false; }
+
+  $('btn-pos').onclick = openSurvey;
+  $('sv-cancel').onclick = closeSurvey;
+  $('sv-undo').onclick = () => { survey.rays.pop(); survey.result = survey.rays.length >= 2 ? triangulate(survey.rays) : null; surveyUI(); };
+  $('sv-shot').onclick = () => {
+    const ray = currentRay();
+    if (!ray || !state.trackingOK) { toast('Suivi indisponible, réessayez'); return; }
+    survey.rays.push(ray);
+    survey.result = survey.rays.length >= 2 ? triangulate(survey.rays) : null;
+    if (navigator.vibrate) navigator.vibrate(30);
+    surveyUI();
   };
+  $('sv-apply').onclick = async () => {
+    const r = survey.result; if (!r) return;
+    const pos = r.p.map((v) => +v.toFixed(3));
+    let idx = $('sv-object').value, obj;
+    if (idx === 'new') {
+      const label = prompt('Nom du nouvel objet ?');
+      if (!label) return;
+      obj = { id: label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-'), label, position: pos, color: '#ce93d8', info: '' };
+      CFG.objects.push(obj);
+    } else { obj = CFG.objects[+idx]; obj.position = pos; }
+    const json = JSON.stringify({ objects: CFG.objects }, null, 2).replace(/\[\n\s+([-\d.]+),\n\s+([-\d.]+),\n\s+([-\d.]+)\n\s+\]/g, '[$1, $2, $3]');
+    try { await navigator.clipboard.writeText(json); toast(`${obj.label} → [${pos.join(', ')}] · liste « objects » copiée`); }
+    catch (e) { toast(`${obj.label} → [${pos.join(', ')}]`); }
+    console.log(json);
+    survey.rays = []; survey.result = null; surveyUI();
+  };
+
+  function drawSurvey() {
+    const W = window.innerWidth, H = window.innerHeight, cx = W / 2, cy = H / 2;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 3;
+    ctx.beginPath(); ctx.moveTo(cx - 22, cy); ctx.lineTo(cx - 5, cy); ctx.moveTo(cx + 5, cy); ctx.lineTo(cx + 22, cy);
+    ctx.moveTo(cx, cy - 22); ctx.lineTo(cx, cy - 5); ctx.moveTo(cx, cy + 5); ctx.lineTo(cx, cy + 22); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 1.5, 0, 2 * Math.PI); ctx.fillStyle = '#ff4fd8'; ctx.fill();
+    ctx.shadowBlur = 0;
+    // rayons des visées précédentes et point estimé, projetés dans la vue courante
+    const r = state.reality; if (!r) return;
+    const Tcam_inv = G.invert(cameraPose(r)), P = r.intrinsics;
+    const toScreen = (pRoom) => { const pc = G.apply(Tcam_inv, G.apply(state.T_world_room, pRoom)); return pc[2] < -0.05 ? camToScreen(pc, P) : null; };
+    ctx.strokeStyle = 'rgba(255,79,216,.8)'; ctx.lineWidth = 2;
+    for (const ray of survey.rays) {
+      ctx.beginPath(); let started = false;
+      for (let t = 0.3; t <= 15; t *= 1.15) {
+        const s = toScreen(G.add(ray.o, G.scale(ray.d, t)));
+        if (!s) { started = false; continue; }
+        if (!started) { ctx.moveTo(s[0], s[1]); started = true; } else ctx.lineTo(s[0], s[1]);
+      }
+      ctx.stroke();
+    }
+    if (survey.result) {
+      const s = toScreen(survey.result.p);
+      if (s) { ctx.beginPath(); ctx.arc(s[0], s[1], 9, 0, 2 * Math.PI); ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 3; ctx.stroke(); }
+    }
+  }
   function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2500); }
 
   // ---------------- module pipeline 8th Wall ----------------
