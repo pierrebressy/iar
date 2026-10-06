@@ -1,21 +1,28 @@
 {
+  "_repere": "Repère PIÈCE (m) : x = distance au mur gauche (table 1/2), z = distance au mur du fond (tableau, armoires 2-4), y = hauteur depuis le sol. Ancre A1 sur la face gauche de l'armoire 1, tournée vers le mur gauche.",
   "anchors": {
     "A1": {
       "qrSide": 0.120,
       "frameOuter": 0.190,
       "frameInner": 0.170,
-      "position": [0, 0, 0],
-      "rotation": [0, 0, 0]
+      "position": [3.69, 1.50, 3.39],
+      "rotation": [0, -90, 0]
     }
   },
   "objects": [
-    { "id": "armoire",  "label": "Armoire électrique", "position": [2.40, -0.30, 0.20], "color": "#ffb020",
-      "info": "Tableau principal, 400 V.\nDisjoncteur général en haut à gauche." },
-    { "id": "robot",    "label": "Robot ABB",          "position": [-1.50, -0.60, 4.00], "color": "#4fc3f7",
-      "info": "Cellule de démonstration. Zone de sécurité : 1,5 m." },
-    { "id": "camera",   "label": "Caméra de contrôle", "position": [3.00, 0.80, 6.50], "color": "#a5d6a7",
-      "info": "Caméra 5 MP, objectif 25 mm, éclairage annulaire." },
-    { "id": "sortie",   "label": "Sortie de secours",  "position": [-4.20, -0.20, 9.50], "color": "#ef5350",
-      "info": "Porte coupe-feu, ne pas encombrer." }
+    { "id": "tableau",  "label": "Tableau",   "position": [2.28, 1.90, 0.01], "color": "#ef5350",
+      "info": "Tableau 60 × 40 cm, centre à 1,90 m.\nMur du fond, bord droit à 1 m de l'armoire 2." },
+    { "id": "mac",      "label": "Mac",       "position": [1.11, 1.13, 2.14], "color": "#4fc3f7",
+      "info": "Mac portable (36 × 25 cm) sur la table 3 (h = 111 cm)." },
+    { "id": "ecran1",   "label": "Écran 1",   "position": [1.52, 1.40, 1.93], "color": "#ffd54f",
+      "info": "Écran 1, sur la table 3." },
+    { "id": "ecran2",   "label": "Écran 2",   "position": [2.07, 1.40, 2.03], "color": "#66bb6a",
+      "info": "Écran 2, sur la table 3." },
+    { "id": "armoire2", "label": "Armoire 2", "position": [4.08, 0.54, 0.57], "color": "#ffb020",
+      "info": "Armoire 2 — 100 × 57 cm, h = 108 cm.\nÀ 2,78 m de la table 2." },
+    { "id": "armoire3", "label": "Armoire 3", "position": [5.08, 1.00, 0.57], "color": "#ffb020",
+      "info": "Armoire 3 — 100 × 57 cm, h = 200 cm." },
+    { "id": "armoire4", "label": "Armoire 4", "position": [6.08, 1.00, 0.57], "color": "#ffb020",
+      "info": "Armoire 4 — 100 × 57 cm, h = 200 cm." }
   ]
 }
