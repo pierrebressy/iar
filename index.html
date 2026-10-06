@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>AR Repères</title>
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" async crossorigin="anonymous" data-preload-chunks="slam"></script>
+  <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/iife/reader/index.js"></script>
+  <style>
+    :root { --bg: #111216; --fg: #f4f4f6; --accent: #ffb020; --muted: #9a9ca5; }
+    [hidden] { display: none !important; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; background: #000; color: var(--fg); font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
+    canvas { position: fixed; inset: 0; }
+    #overlay { z-index: 2; }
+    #start { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; padding: 24px; background: var(--bg); text-align: center; }
+    #start h1 { margin: 0; font-size: 26px; }
+    #start p { margin: 0; color: var(--muted); max-width: 340px; line-height: 1.45; }
+    button { font: inherit; border: 0; border-radius: 12px; padding: 12px 18px; background: rgba(30,31,38,.85); color: var(--fg); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    #btn-start { background: var(--accent); color: #1a1200; font-weight: 600; font-size: 18px; padding: 14px 34px; }
+    #btn-start:disabled { opacity: .5; }
+    #hud { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+    #hud > * { pointer-events: auto; }
+    #status { position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 12px; right: 12px; padding: 10px 14px; border-radius: 12px; background: rgba(17,18,22,.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 14px; text-align: center; pointer-events: none; }
+    #debug { position: absolute; top: calc(env(safe-area-inset-top) + 60px); left: 12px; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.6); font: 11px/1.4 ui-monospace, Menlo, monospace; white-space: pre; pointer-events: none; }
+    #bar { position: absolute; bottom: calc(env(safe-area-inset-bottom) + 12px); left: 12px; right: 12px; display: flex; gap: 8px; justify-content: center; }
+    #bar button { font-size: 14px; padding: 10px 12px; }
+    #info { position: absolute; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 70px); padding: 14px 16px; border-radius: 14px; background: rgba(17,18,22,.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-left: 4px solid var(--accent); transform: translateY(20px); opacity: 0; transition: .2s; pointer-events: none; }
+    #info.show { transform: none; opacity: 1; }
+    #info-title { font-weight: 650; font-size: 17px; margin-bottom: 4px; }
+    #info-body { font-size: 14px; line-height: 1.45; color: #d6d7dc; white-space: pre-line; }
+    #toast { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); padding: 10px 14px; border-radius: 10px; background: rgba(0,0,0,.8); font-size: 14px; opacity: 0; transition: .2s; pointer-events: none; }
+    #toast.show { opacity: 1; }
+    #credit { position: absolute; right: 8px; bottom: calc(env(safe-area-inset-bottom) + 64px); font-size: 10px; color: rgba(255,255,255,.55); pointer-events: none; }
+  </style>
+</head>
+<body>
+  <canvas id="camerafeed"></canvas>
+  <canvas id="overlay"></canvas>
+
+  <div id="start">
+    <h1>AR Repères</h1>
+    <p>Visez la cible (QR + cadre noir) à 40–80 cm, tournez lentement autour jusqu'au message « Recalé », puis déplacez-vous dans la pièce.</p>
+    <p id="nobj"></p>
+    <button id="btn-start" disabled>Chargement…</button>
+  </div>
+
+  <div id="hud" hidden>
+    <div id="status">Démarrage…</div>
+    <div id="debug" hidden></div>
+    <div id="info"><div id="info-title"></div><div id="info-body"></div></div>
+    <div id="bar">
+      <button id="btn-reset">↺ Recaler</button>
+      <button id="btn-pos">📍 Ma position</button>
+      <button id="btn-debug">Debug</button>
+    </div>
+    <div id="credit">Powered by 8th Wall</div>
+    <div id="toast"></div>
+  </div>
+
+  <script src="geom.js"></script>
+  <script src="refine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

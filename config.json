@@ -1,0 +1,21 @@
+{
+  "anchors": {
+    "A1": {
+      "qrSide": 0.120,
+      "frameOuter": 0.190,
+      "frameInner": 0.170,
+      "position": [0, 0, 0],
+      "rotation": [0, 0, 0]
+    }
+  },
+  "objects": [
+    { "id": "armoire",  "label": "Armoire électrique", "position": [2.40, -0.30, 0.20], "color": "#ffb020",
+      "info": "Tableau principal, 400 V.\nDisjoncteur général en haut à gauche." },
+    { "id": "robot",    "label": "Robot ABB",          "position": [-1.50, -0.60, 4.00], "color": "#4fc3f7",
+      "info": "Cellule de démonstration. Zone de sécurité : 1,5 m." },
+    { "id": "camera",   "label": "Caméra de contrôle", "position": [3.00, 0.80, 6.50], "color": "#a5d6a7",
+      "info": "Caméra 5 MP, objectif 25 mm, éclairage annulaire." },
+    { "id": "sortie",   "label": "Sortie de secours",  "position": [-4.20, -0.20, 9.50], "color": "#ef5350",
+      "info": "Porte coupe-feu, ne pas encombrer." }
+  ]
+}
